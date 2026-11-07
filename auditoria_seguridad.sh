@@ -9,7 +9,7 @@
 #         /root/auditoria_<servidor>_<fecha>.txt
 # =====================================================================
 
-VERSION="1.1"
+VERSION="1.2"
 # Carpeta raíz a revisar (solo se cambia para pruebas)
 RAIZ="${AUDIT_ROOT:-}"
 
@@ -181,12 +181,21 @@ while IFS=: read -r usuario _ _ _ _ casa _; do
     info ""
     info "  Usuario '$usuario' ($n llave/s) - archivo modificado: $(date -r "$f" '+%Y-%m-%d %H:%M')"
     grep -vE '^\s*(#|$)' "$f" | while read -r linea; do
-      tipo=$(echo "$linea" | grep -oE '(ssh-(rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9]+|sk-[a-z0-9@.-]+)' | head -1)
-      nombre=$(echo "$linea" | awk '{print $NF}')
       opciones=""
       echo "$linea" | grep -qE '^(command=|from=|restrict|no-)' && opciones=" [con restricciones]"
-      info "     - ${tipo:-?}  nombre/comentario: ${nombre:0:60}${opciones}"
+      if existe ssh-keygen; then
+        # huella (SHA256) + nombre completo de la llave
+        fp=$(echo "$linea" | ssh-keygen -lf - 2>/dev/null | awk '{ $1=""; sub(/^ /,""); print }')
+        info "     - ${fp:-(llave ilegible: revisar a mano)}${opciones}"
+      else
+        tipo=$(echo "$linea" | grep -oE '(ssh-(rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9]+|sk-[a-z0-9@.-]+)' | head -1)
+        info "     - ${tipo:-?}  nombre: $(echo "$linea" | awk '{print $NF}' | cut -c1-60)${opciones}"
+      fi
     done
+    if existe ssh-keygen; then
+      DUP=$(ssh-keygen -lf "$f" 2>/dev/null | awk '{print $2}' | sort | uniq -d)
+      [ -n "$DUP" ] && aviso "Usuario '$usuario' tiene la MISMA llave repetida (sobra una copia): $DUP"
+    fi
     if [ "$(find "$f" -mtime -7 2>/dev/null)" ]; then
       aviso "Las llaves de '$usuario' se modificaron en los últimos 7 días. ¿Fuiste tú?"
     fi
