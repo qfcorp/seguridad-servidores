@@ -26,11 +26,11 @@ Revisar los 4 equipos (VPS ERP, VPS Tukán, VPS Correos, laptop qfcorp), encontr
 | Laptop qfcorp | ☐ | | |
 
 ## Fase 3 — Arreglos (según resultados) ⏳ PENDIENTE
-Riesgos que ya sabemos de antes (confirmar con la auditoría):
-- [ ] Regenerar el token del bot de Telegram (quedó visible en un chat) y moverlo a un archivo con permiso 600.
-- [ ] Quitar la llave SSH de respaldo vieja que quedó autorizada sin uso en el VPS del ERP.
-- [ ] Terminar la actualización de Ubuntu del VPS del ERP que quedó a medias.
-- [ ] Pasar las credenciales del ERP a variables de entorno (mapa ya hecho).
+Pendientes conocidos de antes (el detalle está en las notas del chat, no aquí, porque el repo es público):
+- [ ] Rotar el token del bot de alertas y guardarlo en un archivo con permiso 600.
+- [ ] Revisar y quitar llaves SSH antiguas que ya no se usan.
+- [ ] Completar las actualizaciones del sistema pendientes.
+- [ ] Mover credenciales del código a variables de entorno.
 
 Arreglos típicos que probablemente salgan:
 - [ ] SSH solo con llaves (sin contraseñas) y sin entrar directo como root.
