@@ -9,7 +9,7 @@
 #         /root/auditoria_<servidor>_<fecha>.txt
 # =====================================================================
 
-VERSION="1.0"
+VERSION="1.1"
 # Carpeta raíz a revisar (solo se cambia para pruebas)
 RAIZ="${AUDIT_ROOT:-}"
 
@@ -44,6 +44,12 @@ de_paquete() {
     /bin/*|/sbin/*|/lib/*)             dpkg -S "/usr$f"    >/dev/null 2>&1 && return 0 ;;
   esac
   return 1
+}
+# ¿Es un archivo de configuración de un paquete oficial y NADIE lo modificó?
+conffile_intacto() {
+  local f="$1" h
+  h=$(dpkg-query -W -f='${Conffiles}\n' 2>/dev/null | awk -v f="$f" '$1==f {print $2; exit}')
+  [ -n "$h" ] && [ "$h" = "$(md5sum < "$RAIZ$f" 2>/dev/null | cut -d' ' -f1)" ]
 }
 
 echo ""
@@ -275,7 +281,16 @@ for f in "$RAIZ"/etc/cron.d/*; do
   grep -vE '^\s*(#|$)|^[A-Z_]+=' "$f" | corta | sed 's/^/            /' >> "$REPORTE"
 done
 
-SOSP=$(grep -rhsE "$PATRON_MALO" "$RAIZ"/var/spool/cron/ "$RAIZ"/etc/crontab "$RAIZ"/etc/cron.* 2>/dev/null | grep -v '^\s*#' | corta)
+SOSP=""
+for f in "$RAIZ"/var/spool/cron/crontabs/* "$RAIZ"/etc/crontab "$RAIZ"/etc/cron.d/* \
+         "$RAIZ"/etc/cron.hourly/* "$RAIZ"/etc/cron.daily/* "$RAIZ"/etc/cron.weekly/* "$RAIZ"/etc/cron.monthly/*; do
+  [ -f "$f" ] || continue
+  conffile_intacto "${f#$RAIZ}" && continue   # oficial de Ubuntu y sin tocar (ej. certbot)
+  l=$(grep -hsE "$PATRON_MALO" "$f" | grep -v '^\s*#' | corta | sed "s|^|${f#$RAIZ}: |")
+  [ -n "$l" ] && SOSP="${SOSP}${l}
+"
+done
+SOSP=$(printf '%s' "$SOSP" | grep .)
 if [ -n "$SOSP" ]; then
   critico "Tarea programada SOSPECHOSA (descarga y ejecuta, o conexión remota):"
   echo "$SOSP" | sed 's/^/            >> /' >> "$REPORTE"
@@ -378,7 +393,7 @@ while read -r f; do
   de_paquete "${f#$RAIZ}" && continue
   case "$f" in */snap/*) continue;; esac
   SUID_RARO="${SUID_RARO}${f#$RAIZ}\n"
-done < <(find "$RAIZ/" -xdev \( -path "$RAIZ/proc" -o -path "$RAIZ/sys" -o -path "$RAIZ/var/lib/docker" -o -path "$RAIZ/snap" \) -prune -o -type f -perm -4000 -print 2>/dev/null)
+done < <(find "$RAIZ/" -xdev \( -path "$RAIZ/proc" -o -path "$RAIZ/sys" -o -path "$RAIZ/var/lib/docker" -o -path "$RAIZ/var/lib/containerd" -o -path "$RAIZ/snap" \) -prune -o -type f -perm -4000 -print 2>/dev/null)
 if [ -n "$SUID_RARO" ]; then
   critico "Archivos SUID desconocidos (dan poderes de root a quien los ejecute):"
   printf "$SUID_RARO" | sed 's/^/            >> /' >> "$REPORTE"
